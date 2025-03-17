@@ -4,109 +4,45 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { SecretarySidebar } from "@/components/SecretarySidebar";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 export default function ManageFeesPage() {
-  const [students, setStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState("");
-
-  interface StudentDetails {
-    parent_name: string;
-    parent_phone: string;
-    full_name: string;
-    grade: string;
-    last_term_balance: number;
-    current_balance: number;
-    payment_history?: {
-      id: string;
-      mpesa_ref?: string;
-      date: string;
-      time: string;
-      amount: number;
-      balance_after: number;
-    }[];
-  }
-
-  const [studentDetails, setStudentDetails] = useState<StudentDetails | null>(null);
+  const [students, setStudents] = useState<{ id: string; parent_name: string; parent_phone: string; full_name: string; grade: string; last_term_balance: string; }[]>([]);
+  const [selectedTerm, setSelectedTerm] = useState("Term 1");
   const [amount, setAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
   const [mpesaRef, setMpesaRef] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
-    setPaymentDate(today);
-  }, []);
-
-  useEffect(() => {
-    const fetchStudents = async () => {
-        const token = localStorage.getItem("token");
-        try {
-          const res = await fetch("http://localhost:5000/students", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-      
-          if (!res.ok) {
-            toast.error("Failed to fetch students.");
-            return;
-          }
-      
-          const data = await res.json();
-          console.log("Fetched students:", data); // <-- Inspect here
-          setStudents(data.students || []);
-        } catch (error) {
-          toast.error("Error fetching students.");
-          console.error(error);
-        }
-      };
-      
-
     fetchStudents();
-  }, []);
+  }, [selectedTerm]);
 
-  const handleStudentSelect = async (studentId: string) => {
-    setSelectedStudent(studentId);
-
+  const fetchStudents = async () => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:5000/api/student-details/${studentId}`, {
+      const res = await fetch(`http://localhost:5000/api/students?term=${selectedTerm}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
-        toast.error("Failed to fetch student details.");
+        toast.error("Failed to fetch students.");
         return;
       }
-
       const data = await res.json();
-      setStudentDetails(data.student);
+      setStudents(data.students);
     } catch (error) {
-      toast.error("Error fetching student details.");
+      toast.error("Error fetching students.");
       console.error(error);
     }
   };
 
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedStudent || !amount || !paymentDate || !paymentMethod) {
-      toast.error("Please fill in all fields.");
+  const handlePayment = async (studentId: string): Promise<void> => {
+    if (!amount || !mpesaRef) {
+      toast.error("Please enter amount and Mpesa reference.");
       return;
     }
-
-    setLoading(true);
     const token = localStorage.getItem("token");
-
     try {
       const res = await fetch("http://localhost:5000/api/record-payment", {
         method: "POST",
@@ -114,31 +50,19 @@ export default function ManageFeesPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          student_id: selectedStudent,
-          amount,
-          payment_date: paymentDate,
-          payment_method: paymentMethod,
-          mpesa_ref: mpesaRef,
-        }),
+        body: JSON.stringify({ student_id: studentId, amount, mpesa_ref: mpesaRef, term: selectedTerm }),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.message || "Payment recording failed.");
-        return;
+      if (res.ok) {
+        toast.success("Payment recorded successfully!");
+        setAmount("");
+        setMpesaRef("");
+        fetchStudents();
+      } else {
+        toast.error("Payment failed.");
       }
-
-      toast.success("Payment recorded successfully!");
-      setAmount("");
-      setPaymentMethod("");
-      setMpesaRef("");
-      handleStudentSelect(selectedStudent); // refresh details
     } catch (error) {
       toast.error("Error recording payment.");
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -150,173 +74,71 @@ export default function ManageFeesPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-8">
-          <h2 className="text-3xl font-bold mb-8 text-center">
-            TERM 1, 2025 FEES (M-PESA FEE PAYMENTS)
-          </h2>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-3xl font-bold">
+              {selectedTerm.toUpperCase()} FEES MANAGEMENT
+            </h2>
 
-          <div className="max-w-5xl mx-auto bg-white rounded-lg p-8 shadow-md space-y-8">
-            <div>
-              <Label>Student</Label>
-              <Select onValueChange={handleStudentSelect} value={selectedStudent}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((student: any) => (
-                    <SelectItem key={student.id} value={student.id.toString()}>
-                      {student.full_name} - {student.admission_number}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={selectedTerm} onValueChange={setSelectedTerm}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Select Term" />
+              </SelectTrigger>
+              <SelectContent>
+                {['Term 1', 'Term 2', 'Term 3'].map(term => (
+                  <SelectItem key={term} value={term}>{term}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            {studentDetails && (
-              <div className="border p-4 rounded-md bg-gray-50">
-                <h3 className="text-xl font-semibold mb-4">Student Details</h3>
-
-                {/* TABLE for Student Details */}
-                <table className="w-full text-left border-collapse">
-                  <tbody>
-                    <tr>
-                      <td className="border px-4 py-2 font-semibold">Parent/Guardian</td>
-                      <td className="border px-4 py-2">{studentDetails.parent_name}</td>
-                      <td className="border px-4 py-2 font-semibold">Phone</td>
-                      <td className="border px-4 py-2">{studentDetails.parent_phone}</td>
-                    </tr>
-                    <tr>
-                      <td className="border px-4 py-2 font-semibold">Pupil's Name</td>
-                      <td className="border px-4 py-2">{studentDetails.full_name}</td>
-                      <td className="border px-4 py-2 font-semibold">Grade</td>
-                      <td className="border px-4 py-2">{studentDetails.grade}</td>
-                    </tr>
-                    <tr>
-                      <td className="border px-4 py-2 font-semibold">Fees Last Term Balance</td>
-                      <td className="border px-4 py-2">Ksh {studentDetails.last_term_balance}</td>
-                      <td className="border px-4 py-2 font-semibold">Current Balance</td>
-                      <td className="border px-4 py-2">Ksh {studentDetails.current_balance}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* FORM in a TABLE format */}
-            <form onSubmit={handlePayment}>
-              <table className="w-full text-left border-collapse">
-                <tbody>
-                  {paymentMethod === "Mpesa" && (
-                    <tr>
-                      <td className="border px-4 py-2 font-semibold">
-                        <Label>Mpesa Reference</Label>
-                      </td>
-                      <td className="border px-4 py-2">
-                        <Input
-                          type="text"
-                          placeholder="Enter Mpesa Reference"
-                          value={mpesaRef}
-                          onChange={(e) => setMpesaRef(e.target.value)}
-                          required
-                        />
-                      </td>
-                    </tr>
-                  )}
-
-                  <tr>
-                    <td className="border px-4 py-2 font-semibold">
-                      <Label>Amount (Ksh)</Label>
+          <div className="max-w-full mx-auto bg-white rounded-lg p-8 shadow-md overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 whitespace-nowrap">PARENT/GUARDIAN</th>
+                  <th className="p-2 whitespace-nowrap">TELL. No</th>
+                  <th className="p-2 whitespace-nowrap">PUPIL'S NAME</th>
+                  <th className="p-2 whitespace-nowrap">GRADE</th>
+                  <th className="p-2 whitespace-nowrap">FEES LAST TERM BALANCE</th>
+                  <th className="p-2 whitespace-nowrap">M-PESA REF</th>
+                  <th className="p-2 whitespace-nowrap">AMOUNT</th>
+                  <th className="p-2 whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((student) => (
+                  <tr key={student.id} className="border-b">
+                    <td className="p-2 whitespace-nowrap">{student.parent_name}</td>
+                    <td className="p-2 whitespace-nowrap">{student.parent_phone}</td>
+                    <td className="p-2 whitespace-nowrap">{student.full_name}</td>
+                    <td className="p-2 whitespace-nowrap">{student.grade}</td>
+                    <td className="p-2 whitespace-nowrap">{student.last_term_balance}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      <Input
+                        value={mpesaRef}
+                        onChange={(e) => setMpesaRef(e.target.value)}
+                        placeholder="M-PESA REF"
+                        className="w-full"
+                      />
                     </td>
-                    <td className="border px-4 py-2">
+                    <td className="p-2 whitespace-nowrap">
                       <Input
                         type="number"
-                        placeholder="Enter amount"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        required
+                        placeholder="Amount"
+                        className="w-full"
                       />
                     </td>
-                  </tr>
-
-                  <tr>
-                    <td className="border px-4 py-2 font-semibold">
-                      <Label>Payment Date</Label>
-                    </td>
-                    <td className="border px-4 py-2">
-                      <Input
-                        type="date"
-                        value={paymentDate}
-                        onChange={(e) => setPaymentDate(e.target.value)}
-                        required
-                      />
-                    </td>
-                  </tr>
-
-                  <tr>
-                    <td className="border px-4 py-2 font-semibold">
-                      <Label>Payment Method</Label>
-                    </td>
-                    <td className="border px-4 py-2">
-                      <Select
-                        onValueChange={setPaymentMethod}
-                        value={paymentMethod}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select Method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["Cash", "Mpesa", "Bank Transfer", "Cheque"].map((method) => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                  </tr>
-
-                  <tr>
-                    <td colSpan={2} className="text-center py-4">
-                      <Button
-                        type="submit"
-                        className="bg-green-700 hover:bg-green-800 w-1/2"
-                        disabled={loading}
-                      >
-                        {loading ? "Processing..." : "Record Payment"}
+                    <td className="p-2 whitespace-nowrap">
+                      <Button onClick={() => handlePayment(student.id)} className="bg-green-700 hover:bg-green-800 w-full">
+                        Record
                       </Button>
                     </td>
                   </tr>
-                </tbody>
-              </table>
-            </form>
-
-            {/* Payment History */}
-            {(studentDetails?.payment_history?.length ?? 0) > 0 && (
-              <div className="mt-10">
-                <h3 className="text-lg font-bold mb-4">Payment History</h3>
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="border px-4 py-2">M-PESA REF</th>
-                      <th className="border px-4 py-2">DATE</th>
-                      <th className="border px-4 py-2">TIME</th>
-                      <th className="border px-4 py-2">AMOUNT</th>
-                      <th className="border px-4 py-2">TOTAL BALANCE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentDetails?.payment_history?.map((payment: any) => (
-                      <tr key={payment.id}>
-                        <td className="border px-4 py-2">{payment.mpesa_ref || "-"}</td>
-                        <td className="border px-4 py-2">{payment.date}</td>
-                        <td className="border px-4 py-2">{payment.time}</td>
-                        <td className="border px-4 py-2">Ksh {payment.amount}</td>
-                        <td className="border px-4 py-2">Ksh {payment.balance_after}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

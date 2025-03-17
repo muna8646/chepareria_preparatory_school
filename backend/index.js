@@ -342,9 +342,14 @@ function getRedirectUrl(role) {
 app.get("/students", verifyToken, async (req, res) => {
   try {
     const [students] = await db.execute(`
-      SELECT s.*, u.username 
+      SELECT 
+        s.id, 
+        s.full_name, 
+        s.admission_number, 
+        c.class_name, 
+        s.date_of_admission 
       FROM students s
-      JOIN chepareria_users u ON s.id = u.id
+      LEFT JOIN classes c ON s.class_id = c.id
     `);
     res.json(students);
   } catch (error) {
@@ -357,21 +362,22 @@ app.get("/teachers", verifyToken, async (req, res) => {
   try {
     const [teachers] = await db.execute(`
       SELECT 
-        t.*, 
-        u.username, 
-        u.email,
-        u.role 
-      FROM teachers t
-      JOIN chepareria_users u ON t.id = u.id
-      WHERE u.role = 'teacher'
-    `);    
+        id, 
+        full_name, 
+        phone_number, 
+        national_id, 
+        address, 
+        specialization, 
+        qualification, 
+        date_of_hire 
+      FROM teachers
+    `);
     res.json(teachers);
   } catch (error) {
     console.error("❌ Error fetching teachers:", error);
     res.status(500).json({ message: "Server error." });
   }
 });
-
 app.get("/parents", verifyToken, async (req, res) => {
   try {
     const [parents] = await db.execute(`
@@ -511,7 +517,7 @@ app.put("/teacher-profile/update", verifyToken, async (req, res) => {
   }
 });
 
-app.put('/users/:id', verifyToken, async (req, res) => {
+app.put('/users/:id', verifyToken, async (req, res) => { 
   const conn = await db.getConnection();
 
   try {

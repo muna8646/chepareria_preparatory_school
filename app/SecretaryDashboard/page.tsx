@@ -10,13 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { UserCheck, User, DollarSign } from "lucide-react";
+import { UserCheck, User } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 export default function SecretaryDashboard() {
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [fees, setFees] = useState<Fee[]>([]);
 
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -26,7 +25,6 @@ export default function SecretaryDashboard() {
     if (typeof window !== "undefined" && isMounted) {
       fetchStudents();
       fetchTeachers();
-      fetchFees();
     }
     return () => {
       isMounted = false;
@@ -74,25 +72,6 @@ export default function SecretaryDashboard() {
     }
   }
 
-  async function fetchFees() {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await fetch("http://localhost:5000/fees", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
-
-      const data = await res.json();
-      setFees(data);
-    } catch (err) {
-      console.error("Failed to fetch fees", err);
-      toast.error("Failed to load fees.");
-    }
-  }
-
   return (
     <ProtectedRoute allowedRole="secretary">
       <div className="flex min-h-screen bg-gray-100">
@@ -107,7 +86,7 @@ export default function SecretaryDashboard() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <Card className="bg-green-100">
               <CardHeader>
                 <CardTitle className="text-green-700">Total Students</CardTitle>
@@ -124,14 +103,6 @@ export default function SecretaryDashboard() {
                 <User className="h-6 w-6" /> {teachers.length}
               </CardContent>
             </Card>
-            <Card className="bg-green-100">
-              <CardHeader>
-                <CardTitle className="text-green-700">Total Fees Collected</CardTitle>
-              </CardHeader>
-              <CardContent className="text-3xl font-bold flex items-center gap-2 text-green-700">
-                <DollarSign className="h-6 w-6" /> {fees.length}
-              </CardContent>
-            </Card>
           </div>
 
           {/* Tabs */}
@@ -142,9 +113,6 @@ export default function SecretaryDashboard() {
               </TabsTrigger>
               <TabsTrigger value="teachers" className="text-green-800">
                 Teachers
-              </TabsTrigger>
-              <TabsTrigger value="fees" className="text-green-800">
-                Fee Payment
               </TabsTrigger>
             </TabsList>
 
@@ -157,11 +125,6 @@ export default function SecretaryDashboard() {
             <TabsContent value="teachers">
               <TeacherTable teachers={teachers} />
             </TabsContent>
-
-            {/* Fees Tab */}
-            <TabsContent value="fees">
-              <FeeTable fees={fees} />
-            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -173,25 +136,19 @@ interface Student {
   id: number;
   full_name: string;
   admission_number: string;
-  class: string;
+  class_name: string; // Updated from `class_id` to `class_name`
   date_of_admission: string;
-  role: string;
 }
 
 interface Teacher {
   id: number;
   full_name: string;
-  tsc_number: string;
-  subject: string;
-  class_assigned: string;
-}
-
-interface Fee {
-  id: number;
-  student_name: string;
-  admission_number: string;
-  amount: number;
-  date_paid: string;
+  phone_number: string;
+  national_id: string;
+  address: string;
+  specialization: string;
+  qualification: string;
+  date_of_hire: string;
 }
 
 /* STUDENT TABLE */
@@ -202,9 +159,8 @@ function StudentTable({ students, refreshData }: { students: Student[]; refreshD
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Admission No.</TableHead>
-          <TableHead>Class</TableHead>
+          <TableHead>Class</TableHead> {/* Updated from "Class ID" to "Class" */}
           <TableHead>Date of Admission</TableHead>
-          <TableHead>Role</TableHead>
           <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -214,9 +170,8 @@ function StudentTable({ students, refreshData }: { students: Student[]; refreshD
             <TableRow key={student.id}>
               <TableCell>{student.full_name}</TableCell>
               <TableCell>{student.admission_number}</TableCell>
-              <TableCell>{student.class}</TableCell>
+              <TableCell>{student.class_name}</TableCell> {/* Updated from `class_id` to `class_name` */}
               <TableCell>{new Date(student.date_of_admission).toLocaleDateString()}</TableCell>
-              <TableCell>{student.role}</TableCell>
               <TableCell>
                 <Button variant="destructive" size="sm" onClick={() => handleDelete(student.id, refreshData)}>
                   Delete
@@ -226,7 +181,7 @@ function StudentTable({ students, refreshData }: { students: Student[]; refreshD
           ))
         ) : (
           <TableRow>
-            <TableCell colSpan={6} className="text-center">
+            <TableCell colSpan={5} className="text-center">
               No students found.
             </TableCell>
           </TableRow>
@@ -249,9 +204,9 @@ function TeacherTable({ teachers }: { teachers: Teacher[] }) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>TSC Number</TableHead>
-          <TableHead>Subject</TableHead>
-          <TableHead>Class Assigned</TableHead>
+          <TableHead>Phone Number</TableHead>
+          <TableHead>National ID</TableHead>
+          <TableHead>Specialization</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -259,49 +214,15 @@ function TeacherTable({ teachers }: { teachers: Teacher[] }) {
           teachers.map((teacher) => (
             <TableRow key={teacher.id}>
               <TableCell>{teacher.full_name}</TableCell>
-              <TableCell>{teacher.tsc_number}</TableCell>
-              <TableCell>{teacher.subject}</TableCell>
-              <TableCell>{teacher.class_assigned}</TableCell>
+              <TableCell>{teacher.phone_number}</TableCell>
+              <TableCell>{teacher.national_id}</TableCell>
+              <TableCell>{teacher.specialization}</TableCell>
             </TableRow>
           ))
         ) : (
           <TableRow>
             <TableCell colSpan={4} className="text-center">
               No teachers found.
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
-}
-
-/* FEE TABLE */
-function FeeTable({ fees }: { fees: Fee[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Student Name</TableHead>
-          <TableHead>Admission No.</TableHead>
-          <TableHead>Amount</TableHead>
-          <TableHead>Date Paid</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {fees.length > 0 ? (
-          fees.map((fee) => (
-            <TableRow key={fee.id}>
-              <TableCell>{fee.student_name}</TableCell>
-              <TableCell>{fee.admission_number}</TableCell>
-              <TableCell>Ksh {fee.amount}</TableCell>
-              <TableCell>{new Date(fee.date_paid).toLocaleDateString()}</TableCell>
-            </TableRow>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={4} className="text-center">
-              No fee records found.
             </TableCell>
           </TableRow>
         )}

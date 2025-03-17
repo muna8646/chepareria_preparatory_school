@@ -16,39 +16,43 @@ import {
 } from "@/components/ui/select";
 
 export default function AssignTeacherClassPage() {
-  const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [selectedTeacher, setSelectedTeacher] = useState("");
-  const [selectedClass, setSelectedClass] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [teachers, setTeachers] = useState<{ id: number; full_name: string }[]>([]);
+  const [classes, setClasses] = useState<{ id: number; class_name: string }[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<string>("");
+  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   // Fetch teachers and classes
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem("token");
-      try {
-        const [teachersRes, classesRes] = await Promise.all([
-          fetch("http://localhost:5000/api/teachers", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch("http://localhost:5000/api/classes", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+      if (!token) {
+        toast.error("User is not authenticated.");
+        return;
+      }
 
-        if (!teachersRes.ok || !classesRes.ok) {
-          toast.error("Failed to fetch data.");
+      try {
+        const response = await fetch("http://localhost:5000/api/teachers", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (response.status === 401) {
+          toast.error("Unauthorized. Please log in again.");
           return;
         }
 
-        const teachersData = await teachersRes.json();
-        const classesData = await classesRes.json();
+        if (!response.ok) {
+          throw new Error("Failed to fetch teachers.");
+        }
 
-        setTeachers(teachersData.teachers || []);
-        setClasses(classesData.classes || []);
+        const data = await response.json();
+        setTeachers(data.teachers);
       } catch (error) {
-        toast.error("Error fetching data.");
-        console.error(error);
+        console.error("Error fetching teachers:", error);
       }
     };
 
@@ -59,7 +63,7 @@ export default function AssignTeacherClassPage() {
     e.preventDefault();
 
     if (!selectedTeacher || !selectedClass) {
-      toast.error("Select both teacher and class.");
+      toast.error("Please select both teacher and class.");
       return;
     }
 
@@ -79,17 +83,25 @@ export default function AssignTeacherClassPage() {
         }),
       });
 
+      if (res.status === 401) {
+        toast.error("Unauthorized. Please log in again.");
+        return;
+      }
+
       if (!res.ok) {
         const data = await res.json();
-        toast.error(data.message || "Assignment failed.");
-        return;
+        throw new Error(data.message || "Assignment failed.");
       }
 
       toast.success("Teacher assigned successfully!");
       setSelectedTeacher("");
       setSelectedClass("");
     } catch (error) {
-      toast.error("Error assigning teacher.");
+      if (error instanceof Error) {
+        toast.error(error.message || "Error assigning teacher.");
+      } else {
+        toast.error("Error assigning teacher.");
+      }
       console.error(error);
     } finally {
       setLoading(false);
@@ -118,7 +130,7 @@ export default function AssignTeacherClassPage() {
                     <SelectValue placeholder="Select Teacher" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teachers.map((teacher: any) => (
+                    {teachers.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id.toString()}>
                         {teacher.full_name}
                       </SelectItem>
@@ -137,7 +149,7 @@ export default function AssignTeacherClassPage() {
                     <SelectValue placeholder="Select Class" />
                   </SelectTrigger>
                   <SelectContent>
-                    {classes.map((cls: any) => (
+                    {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id.toString()}>
                         {cls.class_name}
                       </SelectItem>
